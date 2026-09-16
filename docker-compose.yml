@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@db:5432/appdeploy
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
+      - JWT_SECRET=${JWT_SECRET}
+      - API_PORT=5000
+      - NODE_ENV=production
+    depends_on:
+      - db
+    networks:
+      - appdeploy-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_GSC_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    depends_on:
+      - backend
+    networks:
+      - appdeploy-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=appdeploy
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - appdeploy-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - appdeploy-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  appdeploy-network:
+    driver: bridge
